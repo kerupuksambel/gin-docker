@@ -12,9 +12,12 @@ COPY src /go/src/go-docker-dev.to/src
 COPY templates /go/src/go-docker-dev.to/templates
 
 
-RUN go install github.com/gin-gonic/gin@v1.7.7
+RUN go get -u github.com/gin-gonic/gin
 RUN apk update && apk add --no-cache git
-# RUN go get ./...
+RUN ls
+RUN ls ..
+RUN ls *
+RUN go get ./..
 
 COPY dependencies /go/src
 
