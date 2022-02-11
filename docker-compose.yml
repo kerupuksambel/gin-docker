@@ -1,0 +1,19 @@
+version: '2'
+services:
+  db:
+    build: ./db
+    container_name: crud-db
+    command: 
+      - --default-authentication-plugin=mysql_native_password
+    volumes:
+      - .:/application
+    restart: always
+    ports:
+      - 10002:3306
+  web:
+    build: ./web
+    container_name: crud-web
+    ports:
+      - 10001:3004
+    depends_on:
+      - db
