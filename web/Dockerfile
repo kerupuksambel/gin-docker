@@ -11,15 +11,10 @@ WORKDIR /go/src/go-docker-dev.to
 COPY src /go/src/go-docker-dev.to/src
 COPY templates /go/src/go-docker-dev.to/templates
 
+WORKDIR /go/src/go-docker-dev.to/src
+RUN go mod download
 
-RUN go get -u github.com/gin-gonic/gin
-RUN apk update && apk add --no-cache git
-RUN ls
-RUN ls ..
-RUN ls *
-RUN go get ./..
-
-COPY dependencies /go/src
+# COPY dependencies /go/src
 
 
 RUN go build go-docker-dev.to/src/app
