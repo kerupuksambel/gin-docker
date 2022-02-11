@@ -11,8 +11,9 @@ WORKDIR /go/src/go-docker-dev.to
 COPY src /go/src/go-docker-dev.to/src
 COPY templates /go/src/go-docker-dev.to/templates
 
-# WORKDIR /go/src/go-docker-dev.to/src
-RUN cd src && go mod download && cd ..
+WORKDIR /go/src/go-docker-dev.to/src
+RUN go mod download
+RUN go get go-docker-dev.to/src/app
 
 # COPY dependencies /go/src
 
