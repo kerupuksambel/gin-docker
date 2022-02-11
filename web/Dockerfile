@@ -1,25 +1,19 @@
-FROM golang:alpine
+ARG GO_VERSION=1.11
 
-MAINTAINER Maintainer
+FROM golang:${GO_VERSION}-alpine AS builder
 
-ENV GIN_MODE=release
-ENV PORT=3004
+RUN apk update && apk add alpine-sdk git && rm -rf /var/cache/apk/*
 
+RUN mkdir -p /api
+WORKDIR /api
 
-WORKDIR /go/src/go-docker-dev.to
-
-COPY src /go/src/go-docker-dev.to/src
-COPY templates /go/src/go-docker-dev.to/templates
-
-WORKDIR /go/src/go-docker-dev.to/src
+COPY go.mod .
+COPY go.sum .
 RUN go mod download
-RUN go get go-docker-dev.to/src/app
 
-# COPY dependencies /go/src
+COPY . .
+RUN go build -o ./app ./src/main.go
 
-
-RUN go build go-docker-dev.to/src/app
-
-EXPOSE $PORT
+EXPOSE 3004
 
 ENTRYPOINT ["./app"]
