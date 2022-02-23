@@ -12,6 +12,7 @@ COPY go.sum .
 RUN go mod download
 
 COPY . .
+VOLUME ./src /api/src
 RUN go build -o ./app ./src/main.go
 
 EXPOSE 3004
