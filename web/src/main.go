@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	// "github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -18,7 +18,6 @@ import (
 )
 
 type Note struct {
-	ID    	uint   	`json:"id"`
 	Title  	string 	`json:"title"`
 	Content string  `json:"content"`
 }
@@ -46,60 +45,164 @@ func db() *mongo.Client{
 
 var noteCollection = db().Database("crud").Collection("notes")
 
+
 func main() {
-	r := gin.Default()
 
-	r.GET("/note", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	// route := mux.NewRouter()
+	// s := route.PathPrefix("/api").Subrouter() //Base Path
 
-		var body Note
-		var result primitive.M
-		
-		e := json.NewDecoder(r.Body).Decode(&body)
-		if e != nil{
-			// Kalau tidak ada JSON, tampilkan semua
-			err := noteCollection.Find(context.TODO(), bson.D{}).Decode(&result)
-		}else{
-			if body.ID == nil{
-				fmt.Println("Request invalid")
-			}else{
-				// Kalau ada JSON valid, tampilkan hanya ID
-				err := noteCollection.FindOne(context.TODO(), bson.D{{"id", body.ID}}).Decode(&result)
-			}
+	// //Routes
+
+	// s.HandleFunc("/note", get).Methods("GET")
+	// // s.HandleFunc("/note/{id}", detail).Methods("GET")
+	// // s.HandleFunc("/note", create).Methods("POST")
+	// // s.HandleFunc("/updateProfile", updateProfile).Methods("PUT")
+	// // s.HandleFunc("/note/{id}", delete).Methods("DELETE")
+
+	// log.Fatal(http.ListenAndServe(":3004", s)) // Run Server
+
+	router := gin.Default()
+	router.GET("/notes", get)
+	router.GET("/note/:id", detail)
+	router.POST("/note", create)
+	router.PUT("/note/:id", update)
+	router.DELETE("/note/:id", delete)
+
+	router.Run()
+}
+
+
+func get(c *gin.Context){
+	var results []primitive.M
+
+	opts := options.Find().SetProjection(bson.D{{"content", 0}})
+	cur, err := noteCollection.Find(context.TODO(), bson.D{{}}, opts)
+
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	for cur.Next(context.TODO()){
+		var elem primitive.M
+		err := cur.Decode(&elem)
+		if err != nil {
+			log.Fatal(err)
 		}
 
-		if err != nil{
-			fmt.Println(err)
-		}
+		results = append(results, elem)
+	}
 
-		json.NewEncoder(w).Encode(result)
+	cur.Close(context.TODO()) // close the cursor once stream of documents has exhausted
+	c.JSON(http.StatusOK, gin.H{
+		"results" : results,
 	})
+}
 
-	r.GET("/echo/:echo", func(c *gin.Context) {
-		echo := c.Param("echo")
-		c.JSON(http.StatusOK, gin.H{
-			"echo": echo,
-		})
+func detail(c *gin.Context){
+	id := c.Param("id")
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	var result primitive.M
+
+	err = noteCollection.FindOne(context.TODO(), bson.D{{"_id", _id}}).Decode(&result)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	// for cur.Next(context.TODO()){
+	// 	var elem primitive.M
+	// 	err := cur.Decode(&elem)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+
+	// 	results = append(results, elem)
+	// }
+
+	// cur.Close(context.TODO()) // close the cursor once stream of documents has exhausted
+	c.JSON(http.StatusOK, gin.H{
+		"result" : result,
 	})
+}
 
-	r.POST("/upload", func(c *gin.Context) {
-		form, _ := c.MultipartForm()
-		files := form.File["upload[]"]
+func create(c *gin.Context){
+	var n Note
+	err := json.NewDecoder(c.Request.Body).Decode(&n) // storing in person variable of type user
+	if err != nil {
+		fmt.Print(err)
+	}
 
-		for _, file := range files {
-			log.Println(file.Filename)
+	insertResult, err := noteCollection.InsertOne(context.TODO(), n)
+	var status bool
+	if err != nil {
+		log.Fatal(err)
+		status = false
+	}else{
+		status = true
+	}
 
-			// Upload the file to specific dst.
-			// c.SaveUploadedFile(file, dst)
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"uploaded": len(files),
-		})
+	c.JSON(http.StatusOK, gin.H{
+		"success" : status,
+		"id" : insertResult.InsertedID,
 	})
+}
 
-	// r.GET("/products", GetProducts)
+func delete(c *gin.Context){
+	id := c.Param("id")
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		fmt.Print(err)
+	}
 
-	r.Run() // listen and serve on 0.0.0.0:8080
+	opts := options.Delete().SetCollation(&options.Collation{})
+	deleteResult, err := noteCollection.DeleteOne(context.TODO(), bson.D{{"_id", _id}}, opts)
+	var status bool
+	if err != nil {
+		log.Fatal(err)
+		status = false
+	}else{
+		status = true
+		fmt.Printf("%v documents deleted", deleteResult.DeletedCount)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success" : status,
+	})
+}
+
+func update(c *gin.Context){
+	id := c.Param("id")
+	_id, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	var body Note
+	e := json.NewDecoder(c.Request.Body).Decode(&body)
+	if e != nil {
+		fmt.Print(e)
+	}
+
+	update := bson.D{{"$set", bson.M{"title": body.Title, "content": body.Content}}}
+
+	updateResult := noteCollection.FindOneAndUpdate(context.TODO(), bson.D{{"_id", _id}}, update)
+	
+	var status bool
+	var result primitive.M
+	_ = updateResult.Decode(&result)
+	if updateResult == nil {
+		log.Fatal(err)
+		status = false
+	}else{
+		status = true
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success" : status,
+	})
 }
 
 // func GetProducts(c *gin.Context) {
